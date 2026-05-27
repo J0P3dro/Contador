@@ -1,0 +1,67 @@
+import psutil
+import time
+from datetime import timedelta
+
+# Configurações iniciais
+NOME_PROCESSO = "capcut.exe" # Use "CapCut" se estiver no Mac
+ARQUIVO_LOG = "tempo_uso_capcut.txt"
+
+def verificar_processo_aberto(nome_processo):
+    """Verifica se existe algum processo rodando com o nome especificado."""
+    for proc in psutil.process_iter(['name']):
+        try:
+            if nome_processo.lower() in proc.info['name'].lower():
+                return True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    return False
+
+def formatar_tempo(segundos):
+    """Formata os segundos em Horas, Minutos e Segundos."""
+    return str(timedelta(seconds=int(segundos)))
+
+def main():
+    print(f"Iniciando monitoramento do {NOME_PROCESSO}...")
+    print(f"Os dados serão salvos no arquivo: {ARQUIVO_LOG}")
+    print("Pressione Ctrl+C para encerrar o programa.\n")
+    
+    capcut_aberto = False
+    tempo_inicio = 0
+    tempo_total_acumulado = 0 # Guarda o tempo de sessões anteriores no mesmo dia
+
+    while True:
+        esta_rodando = verificar_processo_aberto(NOME_PROCESSO)
+
+        # Caso 1: O CapCut acabou de ser aberto
+        if esta_rodando and not capcut_aberto:
+            capcut_aberto = True
+            tempo_inicio = time.time()
+            print("CapCut aberto! Iniciando a contagem...")
+
+        # Caso 2: O CapCut continua aberto
+        elif esta_rodando and capcut_aberto:
+            tempo_atual = time.time()
+            tempo_decorrido_sessao = tempo_atual - tempo_inicio
+            tempo_total_agora = tempo_total_acumulado + tempo_decorrido_sessao
+
+            # Atualiza o arquivo de texto em tempo real (sobrescreve com o tempo atual)
+            with open(ARQUIVO_LOG, "w") as arquivo:
+                arquivo.write(f"Tempo total no CapCut: {formatar_tempo(tempo_total_agora)}\n")
+
+        # Caso 3: O CapCut acabou de ser fechado
+        elif not esta_rodando and capcut_aberto:
+            capcut_aberto = False
+            tempo_atual = time.time()
+            tempo_decorrido_sessao = tempo_atual - tempo_inicio
+            tempo_total_acumulado += tempo_decorrido_sessao
+            print(f"CapCut fechado. Tempo salvo: {formatar_tempo(tempo_total_acumulado)}")
+            print("Aguardando você reabrir o aplicativo...")
+
+        # Pausa de 5 segundos antes de checar novamente (para não sobrecarregar seu PC)
+        time.sleep(5)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nMonitoramento encerrado pelo usuário.")
